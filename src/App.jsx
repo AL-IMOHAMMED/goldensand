@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 
 const SUPABASE_URL = 'https://fuhsrteersmcnoocgkfj.supabase.co'
-const SUPABASE_KEY = 'sb_publishable_sWMZ1mOwxA-pFlkSSqMIyQ_yvz0L_jI'
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ1aHNydGVlcnNtY25vb2Nna2ZqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNjE1MzUsImV4cCI6MjA5MjczNzUzNX0.4vR8qaDCxpwWScqPen11HsOKmqhpwD9rdnsVpLiOg-w'
 
 const api = {
   headers: (t) => ({ 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${t || SUPABASE_KEY}` }),
