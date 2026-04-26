@@ -59,18 +59,16 @@ export default function App() {
   }
 
   // PDF Upload & Extract
+// PDF Upload & Extract
 const handlePdfUpload = async (file, type) => {
   setExtracting(true)
   try {
     let base64Image;
     
     if (file.type === 'application/pdf') {
-      // تحويل PDF إلى صورة
-      const pdfjsLib = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.mjs');
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.mjs';
-      
+      // تحويل PDF إلى صورة باستخدام pdf.js
       const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       const page = await pdf.getPage(1);
       
       const scale = 2;
