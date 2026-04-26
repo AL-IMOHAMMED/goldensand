@@ -59,33 +59,58 @@ export default function App() {
   }
 
   // PDF Upload & Extract
-  const handlePdfUpload = async (file, type) => {
-    setExtracting(true)
-    try {
-      const reader = new FileReader()
-      reader.onload = async () => {
-        const base64 = reader.result.split(',')[1]
-        const res = await fetch('/api/extract', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: base64, type })
-        })
-        const result = await res.json()
-        if (type === 'purchase') {
-          setForm({ invoiceNo: result.invoice_no || '', supplier: result.supplier || '', date: result.date || new Date().toISOString().split('T')[0], total: result.total || '', currency: result.currency || 'USD' })
-          setExtractedItems(result.items || [])
-        } else {
-          setForm({ invoiceNo: result.invoice_no || '', company: result.company || '', date: result.date || new Date().toISOString().split('T')[0], total: result.total || '', currency: result.currency || 'TRY', shipmentRef: result.shipment_ref || '', route: result.route || '', weight: result.weight || '', packages: result.packages || '' })
-        }
-        notify('✅ تم استخراج البيانات!')
-        setExtracting(false)
-      }
-      reader.readAsDataURL(file)
-    } catch (e) {
-      notify('❌ خطأ في القراءة')
-      setExtracting(false)
+const handlePdfUpload = async (file, type) => {
+  setExtracting(true)
+  try {
+    let base64Image;
+    
+    if (file.type === 'application/pdf') {
+      // تحويل PDF إلى صورة
+      const pdfjsLib = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.mjs');
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.mjs';
+      
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const page = await pdf.getPage(1);
+      
+      const scale = 2;
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext('2d');
+      
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      base64Image = canvas.toDataURL('image/png').split(',')[1];
+    } else {
+      // صورة عادية
+      const reader = new FileReader();
+      base64Image = await new Promise((resolve) => {
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.readAsDataURL(file);
+      });
     }
+    
+    const res = await fetch('/api/extract', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: base64Image, type })
+    });
+    const result = await res.json();
+    
+    if (type === 'purchase') {
+      setForm({ invoiceNo: result.invoice_no || '', supplier: result.supplier || '', date: result.date || new Date().toISOString().split('T')[0], total: result.total || '', currency: result.currency || 'USD' });
+      setExtractedItems(result.items || []);
+    } else {
+      setForm({ invoiceNo: result.invoice_no || '', company: result.company || '', date: result.date || new Date().toISOString().split('T')[0], total: result.total || '', currency: result.currency || 'TRY', shipmentRef: result.shipment_ref || '', route: result.route || '', weight: result.weight || '', packages: result.packages || '' });
+    }
+    notify('✅ تم استخراج البيانات!');
+  } catch (e) {
+    console.error('Error:', e);
+    notify('❌ خطأ في القراءة');
   }
+  setExtracting(false);
+}
 
   const addCustomer = async () => { if (!form.name) return notify('❌ أدخل الاسم'); setIsLoading(true); await api.insert('customers', { user_id: user.id, name: form.name, country: form.country || '' }, token); await loadData(); setModal(null); setForm({}); notify('✅ تم'); setIsLoading(false) }
   const addProduct = async () => { if (!form.name) return notify('❌ أدخل الاسم'); setIsLoading(true); await api.insert('products', { user_id: user.id, code: form.code || '', name: form.name, price: parseFloat(form.price) || 0, currency: form.currency || 'USD' }, token); await loadData(); setModal(null); setForm({}); notify('✅ تم'); setIsLoading(false) }
