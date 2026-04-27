@@ -1,4 +1,5 @@
 export default async function handler(req, res) {
+  // إعدادات CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -8,11 +9,18 @@ export default async function handler(req, res) {
   
   try {
     const { file, fileType, type } = req.body;
+
+    // التأكد من وجود البيانات الأساسية
+    if (!file || !fileType) {
+      return res.status(400).json({ error: 'Missing file data or file type' });
+    }
     
+    // تحديد الـ Prompt بناءً على نوع الفاتورة
     const prompt = type === 'purchase' 
       ? `Extract from this invoice and return ONLY valid JSON: {"invoice_no":"", "supplier":"", "date":"YYYY-MM-DD", "currency":"", "total":0, "items":[{"code":"", "name":"", "qty":0, "price":0}]}`
       : `Extract from this shipping invoice and return ONLY valid JSON: {"invoice_no":"", "company":"", "date":"YYYY-MM-DD", "currency":"", "total":0, "shipment_ref":"", "route":"", "weight":"", "packages":""}`;
     
+    // إرسال الطلب إلى Anthropic (Claude)
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -30,7 +38,7 @@ export default async function handler(req, res) {
               type: 'image',
               source: {
                 type: 'base64',
-                media_type: 'image/png',
+                media_type: fileType, // تم التعديل ليكون ديناميكياً (image/png, image/jpeg, etc.)
                 data: file
               }
             },
@@ -42,16 +50,26 @@ export default async function handler(req, res) {
     
     const data = await response.json();
     
+    // معالجة أخطاء API الخاص بـ Anthropic
     if (data.error) {
+      console.error("Anthropic API Error:", data.error);
       return res.status(400).json({ error: data.error.message });
     }
     
+    // استخراج النص وتحويله إلى JSON
     const text = data.content?.[0]?.text || '{}';
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    const result = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
     
+    if (!jsonMatch) {
+      return res.status(500).json({ error: "Could not parse JSON from AI response", rawText: text });
+    }
+
+    const result = JSON.parse(jsonMatch[0]);
     res.status(200).json(result);
+
   } catch (error) {
+    // تسجيل الخطأ في Vercel Logs للتشخيص
+    console.error("Internal Server Error:", error);
     res.status(500).json({ error: error.message });
   }
 }
