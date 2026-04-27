@@ -10,36 +10,33 @@ export default async function handler(req, res) {
     const { file, fileType, type } = req.body;
     
     const prompt = type === 'purchase' 
-      ? `استخرج من هذه الفاتورة: invoice_no (رقم الفاتورة), supplier (المورد), date (التاريخ YYYY-MM-DD), currency (العملة), total (المجموع كرقم), items (مصفوفة تحتوي code, name, qty, price). أرجع JSON فقط.`
-      : `استخرج من فاتورة الشحن: invoice_no, company, date, currency, total, shipment_ref, route, weight, packages. أرجع JSON فقط.`;
-    
-    const content = [];
-    
-    if (fileType === 'application/pdf') {
-      content.push({
-        type: 'document',
-        source: { type: 'base64', media_type: 'application/pdf', data: file }
-      });
-    } else {
-      content.push({
-        type: 'image',
-        source: { type: 'base64', media_type: fileType || 'image/png', data: file }
-      });
-    }
-    
-    content.push({ type: 'text', text: prompt });
+      ? `Extract from this invoice and return ONLY valid JSON: {"invoice_no":"", "supplier":"", "date":"YYYY-MM-DD", "currency":"", "total":0, "items":[{"code":"", "name":"", "qty":0, "price":0}]}`
+      : `Extract from this shipping invoice and return ONLY valid JSON: {"invoice_no":"", "company":"", "date":"YYYY-MM-DD", "currency":"", "total":0, "shipment_ref":"", "route":"", "weight":"", "packages":""}`;
     
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2024-10-22'
+        'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-3-5-sonnet-latest',
+        model: 'claude-3-sonnet-20240229',
         max_tokens: 4096,
-        messages: [{ role: 'user', content }]
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: 'image/png',
+                data: file
+              }
+            },
+            { type: 'text', text: prompt }
+          ]
+        }]
       })
     });
     
@@ -55,7 +52,6 @@ export default async function handler(req, res) {
     
     res.status(200).json(result);
   } catch (error) {
-    console.error('Error:', error);
     res.status(500).json({ error: error.message });
   }
 }
