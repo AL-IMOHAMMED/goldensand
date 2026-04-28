@@ -7,16 +7,37 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   
   try {
-    console.log('Has API key:', !!process.env.ANTHROPIC_API_KEY, 'Length:', process.env.ANTHROPIC_API_KEY?.length || 0);
-    // const { file, fileType, type } = req.body;
+    const { file, fileType, type } = req.body;
     
     if (!file) {
       return res.status(400).json({ error: 'No file provided' });
     }
     
     const prompt = type === 'purchase' 
-      ? `Look at this invoice image and extract: invoice_no, supplier, date (YYYY-MM-DD format), currency, total (number only), items (array with code, name, qty, price). Return ONLY valid JSON, no other text.`
+      ? `Look at this invoice and extract: invoice_no, supplier, date (YYYY-MM-DD format), currency, total (number only), items (array with code, name, qty, price). Return ONLY valid JSON, no other text.`
       : `Look at this shipping invoice and extract: invoice_no, company, date (YYYY-MM-DD), currency, total, shipment_ref, route, weight, packages. Return ONLY valid JSON, no other text.`;
+    
+    // فرّق بين PDF والصور — كل نوع له content type مختلف
+    const mt = (fileType || 'image/png').toLowerCase();
+    const isPdf = mt === 'application/pdf';
+    const allowedImages = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    
+    let fileBlock;
+    if (isPdf) {
+      fileBlock = {
+        type: 'document',
+        source: { type: 'base64', media_type: 'application/pdf', data: file }
+      };
+    } else if (allowedImages.includes(mt)) {
+      fileBlock = {
+        type: 'image',
+        source: { type: 'base64', media_type: mt, data: file }
+      };
+    } else {
+      return res.status(400).json({ 
+        error: `Unsupported file type: ${mt}. Use PDF, JPEG, PNG, GIF, or WEBP.` 
+      });
+    }
     
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -26,19 +47,12 @@ export default async function handler(req, res) {
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-3-haiku-20240307',
+        model: 'claude-haiku-4-5',
         max_tokens: 4096,
         messages: [{
           role: 'user',
           content: [
-            {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: fileType || 'image/png',
-                data: file
-              }
-            },
+            fileBlock,
             { type: 'text', text: prompt }
           ]
         }]
@@ -46,9 +60,9 @@ export default async function handler(req, res) {
     });
     
     const data = await response.json();
-    console.log('API Response:', JSON.stringify(data));
     
     if (data.error) {
+      console.error('Anthropic API Error:', data.error);
       return res.status(400).json({ error: data.error.message, details: data.error });
     }
     
