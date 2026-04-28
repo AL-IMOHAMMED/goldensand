@@ -7,7 +7,8 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   
   try {
-    const { file, fileType, type } = req.body;
+    console.log('Has API key:', !!process.env.ANTHROPIC_API_KEY, 'Length:', process.env.ANTHROPIC_API_KEY?.length || 0);
+    // const { file, fileType, type } = req.body;
     
     if (!file) {
       return res.status(400).json({ error: 'No file provided' });
